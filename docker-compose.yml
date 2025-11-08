@@ -43,7 +43,7 @@ services:
       credentials_network:
         ipv4_address: "169.254.170.3"
 
-  # Hosts the backend WebSocket server 
+  # Hosts the backend WebSocket server
   server:
     build:
       context: ./server
@@ -59,9 +59,14 @@ services:
         condition: service_started
     env_file:
       - dev.env
+      - .env  # Load credentials from .env if it exists
     environment:
-      AWS_REGION: us-west-2
+      AWS_REGION: ${AWS_REGION:-us-east-2}
       DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      # AWS credentials from .env file
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       # This ENV VAR enables credentials
       # Set it to "/creds" or "/role/<role name>"
       AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: "/creds"

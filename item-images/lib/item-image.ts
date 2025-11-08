@@ -20,7 +20,7 @@ const s3Client = new S3Client();
 
 export async function generateImage(prompt) {
   const params = {
-    modelId: 'amazon.nova-canvas-v1:0',
+    modelId: 'stability.stable-fast-upscale-v1:0',
     contentType: 'application/json',
     accept: 'application/json',
     body: JSON.stringify({

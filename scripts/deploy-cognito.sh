@@ -15,7 +15,7 @@ fi
 
 STACK_PREFIX=$1
 COGNITO_STACK_NAME="${STACK_PREFIX}-cognito"
-REGION=${AWS_REGION:-us-west-2}
+REGION=${AWS_REGION:-us-east-2}
 
 echo "Deploying Cognito resources for stack: $COGNITO_STACK_NAME"
 echo "Region: $REGION"

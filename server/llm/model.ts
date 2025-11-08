@@ -2,7 +2,7 @@ import { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } from '@a
 
 // Initialize the Bedrock client
 const bedrockClient = new BedrockRuntimeClient({
-  region: 'us-west-2', // Update with your preferred AWS region
+  region: process.env.AWS_REGION || 'us-east-2', // Use environment variable or default to us-east-2
 });
 
 // Model fallback configuration
