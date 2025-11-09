@@ -39,7 +39,22 @@ export default async function handleSignin(state: ConnectionState, data: SigninM
       }
     });
 
-    const authResult = await cognitoClient.send(authCommand);
+    let authResult;
+    try {
+      authResult = await cognitoClient.send(authCommand);
+    } catch (authError: any) {
+      // Check if user is not verified
+      if (authError.name === 'UserNotConfirmedException') {
+        return {
+          type: "signin_unverified",
+          body: {
+            username,
+            message: "Please verify your email address before signing in."
+          }
+        };
+      }
+      throw authError;
+    }
 
     // Get user details
     const userCommand = new GetUserCommand({

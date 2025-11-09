@@ -22,44 +22,34 @@
     </div>
 
     <div class="auth-wrapper">
-      <router-link to="/" class="back-link">
-        <span>← RETURN</span>
+      <router-link to="/signin" class="back-link">
+        <span>← RETURN TO SIGNIN</span>
       </router-link>
       
       <div class="auth-container">
         <div class="title-bar"></div>
-        <h1 class="glitch" data-text="ACCESS TERMINAL">ACCESS TERMINAL</h1>
+        <h1 class="glitch" data-text="PASSWORD RESET">PASSWORD RESET</h1>
+        
+        <div class="info-message">
+          <span class="info-icon">🔒</span>
+          <div class="info-text">
+            <p>Enter your email address and we'll send you a reset code.</p>
+          </div>
+        </div>
         
         <form @submit.prevent="handleSubmit" class="auth-form">
           <div class="form-group">
-            <label for="username">EMAIL ADDRESS</label>
+            <label for="email">EMAIL ADDRESS</label>
             <div class="input-wrapper">
               <input 
                 type="text" 
-                id="username" 
-                v-model="username" 
+                id="email" 
+                v-model="email" 
                 required
                 autocomplete="username"
               />
               <div class="input-glow"></div>
             </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="password">PASSWORD</label>
-            <div class="input-wrapper">
-              <input 
-                type="password" 
-                id="password" 
-                v-model="password" 
-                required
-                autocomplete="current-password"
-              />
-              <div class="input-glow"></div>
-            </div>
-            <router-link to="/forgot-password" class="forgot-password-link">
-              <span>FORGOT PASSWORD?</span>
-            </router-link>
           </div>
 
           <div v-if="error" class="error-message">
@@ -67,11 +57,11 @@
           </div>
 
           <button type="submit" class="submit-button">
-            <span class="button-text">AUTHENTICATE</span>
+            <span class="button-text">SEND RESET CODE</span>
           </button>
 
-          <router-link to="/signup" class="toggle-link">
-            <span>NEED ACCESS? REQUEST CREDENTIALS</span>
+          <router-link to="/signin" class="toggle-link">
+            <span>REMEMBER PASSWORD? AUTHENTICATE</span>
           </router-link>
         </form>
       </div>
@@ -86,8 +76,7 @@ import { useRouter } from 'vue-router'
 
 const gameStore = useGameStore()
 const router = useRouter()
-const username = ref('')
-const password = ref('')
+const email = ref('')
 const error = ref('')
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
@@ -193,54 +182,28 @@ function handleResize() {
 }
 
 // Store listener IDs
-let successListenerId: string | null = null;
-let failureListenerId: string | null = null;
-let unverifiedListenerId: string | null = null;
+let resetCodeSentListenerId: string | null = null
 
-// Setup event listeners
 const setupListeners = () => {
-  removeListeners();
+  removeListeners()
   
-  successListenerId = gameStore.addEventListener('signin_success', (data) => {
-    if (data && data.userId) {
-      gameStore.userId = data.userId
-    }
-    router.push('/play')
-    removeListeners();
-  })
-  
-  failureListenerId = gameStore.addEventListener('signin_failure', (data) => {
-    error.value = data || 'Authentication failed'
-    removeListeners();
-  })
-  
-  unverifiedListenerId = gameStore.addEventListener('signin_unverified', (data) => {
-    error.value = 'Email not verified. Redirecting to verification...'
-    setTimeout(() => {
-      router.push({
-        path: '/verify-email',
-        query: {
-          username: username.value,
-          email: username.value
-        }
-      })
-      removeListeners();
-    }, 1500)
+  resetCodeSentListenerId = gameStore.addEventListener('reset_code_sent', (data) => {
+    // Store email and redirect to reset password page
+    router.push({
+      path: '/reset-password',
+      query: {
+        email: email.value,
+        destination: data?.codeDeliveryDetails?.destination || email.value
+      }
+    })
+    removeListeners()
   })
 }
 
 const removeListeners = () => {
-  if (successListenerId) {
-    gameStore.removeEventListener('signin_success', successListenerId)
-    successListenerId = null;
-  }
-  if (failureListenerId) {
-    gameStore.removeEventListener('signin_failure', failureListenerId)
-    failureListenerId = null;
-  }
-  if (unverifiedListenerId) {
-    gameStore.removeEventListener('signin_unverified', unverifiedListenerId)
-    unverifiedListenerId = null;
+  if (resetCodeSentListenerId) {
+    gameStore.removeEventListener('reset_code_sent', resetCodeSentListenerId)
+    resetCodeSentListenerId = null
   }
 }
 
@@ -260,13 +223,12 @@ const handleSubmit = async () => {
       throw new Error('No WebSocket connection available. Attempting to reconnect...')
     }
 
-    setupListeners();
+    setupListeners()
 
     const message = {
-      type: 'signin',
+      type: 'forgot_password',
       body: {
-        username: username.value,
-        password: password.value
+        username: email.value
       }
     }
 
@@ -276,36 +238,36 @@ const handleSubmit = async () => {
   }
 }
 
-let connectionListenerId: string | null = null;
-let reconnectFailedId: string | null = null;
+let connectionListenerId: string | null = null
+let reconnectFailedId: string | null = null
 
 onMounted(() => {
   initCanvas()
   animate()
   
   connectionListenerId = gameStore.addEventListener('reconnect-attempt', (data) => {
-    error.value = `Connection lost. Reconnecting... (${data.attempt}/${data.maxAttempts})`;
-  });
+    error.value = `Connection lost. Reconnecting... (${data.attempt}/${data.maxAttempts})`
+  })
   
   reconnectFailedId = gameStore.addEventListener('reconnect-failed', () => {
-    error.value = 'Failed to reconnect. Please try again later.';
-  });
+    error.value = 'Failed to reconnect. Please try again later.'
+  })
   
   window.addEventListener('resize', handleResize)
-});
+})
 
 onUnmounted(() => {
   if (animationFrame) {
     cancelAnimationFrame(animationFrame)
   }
-  removeListeners();
+  removeListeners()
   
   if (connectionListenerId) {
-    gameStore.removeEventListener('reconnect-attempt', connectionListenerId);
+    gameStore.removeEventListener('reconnect-attempt', connectionListenerId)
   }
   
   if (reconnectFailedId) {
-    gameStore.removeEventListener('reconnect-failed', reconnectFailedId);
+    gameStore.removeEventListener('reconnect-failed', reconnectFailedId)
   }
   
   window.removeEventListener('resize', handleResize)
@@ -512,6 +474,34 @@ onUnmounted(() => {
   }
 }
 
+.info-message {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(0, 255, 255, 0.05);
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  margin-bottom: 2rem;
+  align-items: flex-start;
+}
+
+.info-icon {
+  color: #00ffff;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.info-text {
+  flex: 1;
+  color: rgba(0, 255, 255, 0.8);
+  font-size: 0.8rem;
+  letter-spacing: 0.05rem;
+  line-height: 1.5;
+}
+
+.info-text p {
+  margin: 0.25rem 0;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
@@ -599,23 +589,6 @@ input:focus {
   text-shadow: 0 0 10px #00ffff;
 }
 
-.forgot-password-link {
-  display: block;
-  margin-top: 0.5rem;
-  color: rgba(0, 255, 255, 0.6);
-  text-decoration: none;
-  font-size: 0.65rem;
-  letter-spacing: 0.1rem;
-  text-align: right;
-  transition: color 0.3s;
-  font-family: 'Courier New', monospace;
-}
-
-.forgot-password-link:hover {
-  color: #00ffff;
-  text-shadow: 0 0 8px #00ffff;
-}
-
 .error-message {
   color: #ff0066;
   text-align: center;
@@ -646,6 +619,12 @@ input:focus {
   .glitch {
     font-size: 1.4rem;
     letter-spacing: 0.2rem;
+  }
+  
+  .info-message {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
   }
   
   .utility-buttons-top {

@@ -22,57 +22,68 @@
     </div>
 
     <div class="auth-wrapper">
-      <router-link to="/" class="back-link">
-        <span>← RETURN</span>
+      <router-link to="/signin" class="back-link">
+        <span>← RETURN TO SIGNIN</span>
       </router-link>
       
       <div class="auth-container">
         <div class="title-bar"></div>
-        <h1 class="glitch" data-text="ACCESS TERMINAL">ACCESS TERMINAL</h1>
+        <h1 class="glitch" data-text="VERIFY EMAIL">VERIFY EMAIL</h1>
+        
+        <div class="info-message">
+          <span class="info-icon">✉</span>
+          <div class="info-text">
+            <p>A verification code has been sent to:</p>
+            <p class="email-display">{{ emailAddress }}</p>
+            <p class="info-note">Please check your inbox and enter the code below.</p>
+          </div>
+        </div>
         
         <form @submit.prevent="handleSubmit" class="auth-form">
           <div class="form-group">
-            <label for="username">EMAIL ADDRESS</label>
+            <label for="code">VERIFICATION CODE</label>
             <div class="input-wrapper">
               <input 
                 type="text" 
-                id="username" 
-                v-model="username" 
+                id="code" 
+                v-model="verificationCode" 
                 required
-                autocomplete="username"
+                maxlength="6"
+                placeholder="000000"
+                autocomplete="off"
               />
               <div class="input-glow"></div>
             </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="password">PASSWORD</label>
-            <div class="input-wrapper">
-              <input 
-                type="password" 
-                id="password" 
-                v-model="password" 
-                required
-                autocomplete="current-password"
-              />
-              <div class="input-glow"></div>
-            </div>
-            <router-link to="/forgot-password" class="forgot-password-link">
-              <span>FORGOT PASSWORD?</span>
-            </router-link>
           </div>
 
           <div v-if="error" class="error-message">
             <span class="error-icon">⚠</span> {{ error }}
           </div>
 
-          <button type="submit" class="submit-button">
-            <span class="button-text">AUTHENTICATE</span>
+          <div v-if="successMessage" class="success-message">
+            <span class="success-icon">✓</span> {{ successMessage }}
+          </div>
+
+          <button 
+            type="submit" 
+            class="submit-button"
+            :disabled="verificationCode.length !== 6"
+            :class="{ 'disabled': verificationCode.length !== 6 }"
+          >
+            <span class="button-text">VERIFY</span>
           </button>
 
-          <router-link to="/signup" class="toggle-link">
-            <span>NEED ACCESS? REQUEST CREDENTIALS</span>
-          </router-link>
+          <button 
+            type="button"
+            class="resend-button"
+            @click="handleResend"
+            :disabled="resendCooldown > 0"
+            :class="{ 'disabled': resendCooldown > 0 }"
+          >
+            <span class="button-text">
+              {{ resendCooldown > 0 ? `RESEND CODE (${resendCooldown}s)` : 'RESEND CODE' }}
+            </span>
+          </button>
         </form>
       </div>
     </div>
@@ -82,17 +93,24 @@
 <script setup lang="ts">
 import { ref, onUnmounted, onMounted } from 'vue'
 import { useGameStore } from '../stores/game'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const gameStore = useGameStore()
 const router = useRouter()
-const username = ref('')
-const password = ref('')
+const route = useRoute()
+const verificationCode = ref('')
 const error = ref('')
+const successMessage = ref('')
+const resendCooldown = ref(0)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+
+// Get email and username from route params or query
+const emailAddress = ref(route.query.email as string || route.params.email as string || 'your email')
+const username = ref(route.query.username as string || route.params.username as string || '')
 
 let animationFrame: number
 let ctx: CanvasRenderingContext2D | null = null
+let cooldownInterval: number | null = null
 
 class Particle {
   x: number
@@ -192,55 +210,61 @@ function handleResize() {
   canvasRef.value.height = window.innerHeight
 }
 
-// Store listener IDs
-let successListenerId: string | null = null;
-let failureListenerId: string | null = null;
-let unverifiedListenerId: string | null = null;
-
-// Setup event listeners
-const setupListeners = () => {
-  removeListeners();
-  
-  successListenerId = gameStore.addEventListener('signin_success', (data) => {
-    if (data && data.userId) {
-      gameStore.userId = data.userId
+function startCooldown() {
+  resendCooldown.value = 60
+  cooldownInterval = window.setInterval(() => {
+    resendCooldown.value--
+    if (resendCooldown.value <= 0 && cooldownInterval) {
+      clearInterval(cooldownInterval)
+      cooldownInterval = null
     }
-    router.push('/play')
-    removeListeners();
-  })
+  }, 1000)
+}
+
+// Store listener IDs
+let verificationSuccessListenerId: string | null = null
+let verificationFailureListenerId: string | null = null
+let resendVerificationListenerId: string | null = null
+
+const setupListeners = () => {
+  removeListeners()
   
-  failureListenerId = gameStore.addEventListener('signin_failure', (data) => {
-    error.value = data || 'Authentication failed'
-    removeListeners();
-  })
-  
-  unverifiedListenerId = gameStore.addEventListener('signin_unverified', (data) => {
-    error.value = 'Email not verified. Redirecting to verification...'
+  verificationSuccessListenerId = gameStore.addEventListener('verification_success', (data) => {
+    successMessage.value = 'Email verified successfully! Redirecting to sign in...'
+    error.value = ''
     setTimeout(() => {
-      router.push({
-        path: '/verify-email',
-        query: {
-          username: username.value,
-          email: username.value
-        }
-      })
-      removeListeners();
-    }, 1500)
+      router.push('/signin')
+      removeListeners()
+    }, 2000)
+  })
+  
+  verificationFailureListenerId = gameStore.addEventListener('verification_failure', (data) => {
+    error.value = data || 'Verification failed. Please check your code and try again.'
+    successMessage.value = ''
+  })
+  
+  resendVerificationListenerId = gameStore.addEventListener('resend_verification_success', (data) => {
+    successMessage.value = 'Verification code resent! Check your email.'
+    error.value = ''
+    startCooldown()
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
   })
 }
 
 const removeListeners = () => {
-  if (successListenerId) {
-    gameStore.removeEventListener('signin_success', successListenerId)
-    successListenerId = null;
+  if (verificationSuccessListenerId) {
+    gameStore.removeEventListener('verification_success', verificationSuccessListenerId)
+    verificationSuccessListenerId = null
   }
-  if (failureListenerId) {
-    gameStore.removeEventListener('signin_failure', failureListenerId)
-    failureListenerId = null;
+  if (verificationFailureListenerId) {
+    gameStore.removeEventListener('verification_failure', verificationFailureListenerId)
+    verificationFailureListenerId = null
   }
-  if (unverifiedListenerId) {
-    gameStore.removeEventListener('signin_unverified', unverifiedListenerId)
-    unverifiedListenerId = null;
+  if (resendVerificationListenerId) {
+    gameStore.removeEventListener('resend_verification_success', resendVerificationListenerId)
+    resendVerificationListenerId = null
   }
 }
 
@@ -254,19 +278,26 @@ const openGuide = () => {
 
 const handleSubmit = async () => {
   error.value = ''
+  successMessage.value = ''
+  
   try {
+    if (!username.value) {
+      error.value = 'Username not found. Please return to sign up.'
+      return
+    }
+
     if (!gameStore.ws) {
       gameStore.reconnect()
       throw new Error('No WebSocket connection available. Attempting to reconnect...')
     }
 
-    setupListeners();
+    setupListeners()
 
     const message = {
-      type: 'signin',
+      type: 'verify_email',
       body: {
         username: username.value,
-        password: password.value
+        code: verificationCode.value
       }
     }
 
@@ -276,36 +307,69 @@ const handleSubmit = async () => {
   }
 }
 
-let connectionListenerId: string | null = null;
-let reconnectFailedId: string | null = null;
+const handleResend = async () => {
+  error.value = ''
+  successMessage.value = ''
+  
+  try {
+    if (!username.value) {
+      error.value = 'Username not found. Please return to sign up.'
+      return
+    }
+
+    if (!gameStore.ws) {
+      gameStore.reconnect()
+      throw new Error('No WebSocket connection available. Attempting to reconnect...')
+    }
+
+    setupListeners()
+
+    const message = {
+      type: 'resend_verification',
+      body: {
+        username: username.value
+      }
+    }
+
+    gameStore.ws.send(JSON.stringify(message))
+  } catch (e: any) {
+    error.value = e.message || 'An error occurred'
+  }
+}
+
+let connectionListenerId: string | null = null
+let reconnectFailedId: string | null = null
 
 onMounted(() => {
   initCanvas()
   animate()
   
   connectionListenerId = gameStore.addEventListener('reconnect-attempt', (data) => {
-    error.value = `Connection lost. Reconnecting... (${data.attempt}/${data.maxAttempts})`;
-  });
+    error.value = `Connection lost. Reconnecting... (${data.attempt}/${data.maxAttempts})`
+  })
   
   reconnectFailedId = gameStore.addEventListener('reconnect-failed', () => {
-    error.value = 'Failed to reconnect. Please try again later.';
-  });
+    error.value = 'Failed to reconnect. Please try again later.'
+  })
   
   window.addEventListener('resize', handleResize)
-});
+})
 
 onUnmounted(() => {
   if (animationFrame) {
     cancelAnimationFrame(animationFrame)
   }
-  removeListeners();
+  if (cooldownInterval) {
+    clearInterval(cooldownInterval)
+  }
+  removeListeners()
   
   if (connectionListenerId) {
-    gameStore.removeEventListener('reconnect-attempt', connectionListenerId);
+    gameStore.removeEventListener('reconnect-attempt', connectionListenerId)
   }
   
   if (reconnectFailedId) {
-    gameStore.removeEventListener('reconnect-failed', reconnectFailedId);
+    gameStore.removeEventListener('reconnect-failed', reconnectFailedId)
   }
   
   window.removeEventListener('resize', handleResize)
@@ -512,6 +576,46 @@ onUnmounted(() => {
   }
 }
 
+.info-message {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(0, 255, 255, 0.05);
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  margin-bottom: 2rem;
+  align-items: flex-start;
+}
+
+.info-icon {
+  color: #00ffff;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.info-text {
+  flex: 1;
+  color: rgba(0, 255, 255, 0.8);
+  font-size: 0.8rem;
+  letter-spacing: 0.05rem;
+  line-height: 1.5;
+}
+
+.info-text p {
+  margin: 0.25rem 0;
+}
+
+.email-display {
+  color: #00ffff;
+  font-weight: bold;
+  text-shadow: 0 0 5px #00ffff;
+}
+
+.info-note {
+  font-size: 0.7rem;
+  color: rgba(0, 255, 255, 0.6);
+  margin-top: 0.5rem !important;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
@@ -540,11 +644,18 @@ input {
   border: 1px solid rgba(0, 255, 255, 0.3);
   background: rgba(0, 0, 0, 0.5);
   color: #00ffff;
-  font-size: 1rem;
+  font-size: 1.5rem;
   font-family: 'Courier New', monospace;
   transition: all 0.3s;
   clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
   box-sizing: border-box;
+  text-align: center;
+  letter-spacing: 0.5rem;
+}
+
+input::placeholder {
+  color: rgba(0, 255, 255, 0.2);
+  letter-spacing: 0.5rem;
 }
 
 input:focus {
@@ -572,7 +683,7 @@ input:focus {
   margin-top: 1rem;
 }
 
-.submit-button:hover {
+.submit-button:hover:not(.disabled) {
   background: #00cccc;
   box-shadow: 
     0 0 30px rgba(0, 255, 255, 0.8),
@@ -580,40 +691,37 @@ input:focus {
   transform: translateY(-2px);
 }
 
-.toggle-link {
-  background: none;
-  border: none;
-  color: rgba(0, 255, 255, 0.7);
+.submit-button.disabled {
+  background: rgba(0, 255, 255, 0.2);
+  color: rgba(0, 0, 0, 0.5);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.resend-button {
+  padding: 0.75rem;
+  background: rgba(0, 255, 255, 0.1);
+  color: #00ffff;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.2rem;
   cursor: pointer;
-  padding: 0.5rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.1rem;
-  text-decoration: none;
-  text-align: center;
-  transition: color 0.3s;
   font-family: 'Courier New', monospace;
+  transition: all 0.3s;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
 }
 
-.toggle-link:hover {
-  color: #00ffff;
-  text-shadow: 0 0 10px #00ffff;
+.resend-button:hover:not(.disabled) {
+  background: rgba(0, 255, 255, 0.2);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
 }
 
-.forgot-password-link {
-  display: block;
-  margin-top: 0.5rem;
-  color: rgba(0, 255, 255, 0.6);
-  text-decoration: none;
-  font-size: 0.65rem;
-  letter-spacing: 0.1rem;
-  text-align: right;
-  transition: color 0.3s;
-  font-family: 'Courier New', monospace;
-}
-
-.forgot-password-link:hover {
-  color: #00ffff;
-  text-shadow: 0 0 8px #00ffff;
+.resend-button.disabled {
+  background: rgba(0, 255, 255, 0.05);
+  color: rgba(0, 255, 255, 0.3);
+  cursor: not-allowed;
+  border-color: rgba(0, 255, 255, 0.1);
 }
 
 .error-message {
@@ -634,6 +742,24 @@ input:focus {
   font-size: 1.2rem;
 }
 
+.success-message {
+  color: #00ff88;
+  text-align: center;
+  font-size: 0.8rem;
+  padding: 0.75rem;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  letter-spacing: 0.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.success-icon {
+  font-size: 1.2rem;
+}
+
 @media (max-width: 768px) {
   .auth-wrapper {
     padding: 1rem;
@@ -646,6 +772,17 @@ input:focus {
   .glitch {
     font-size: 1.4rem;
     letter-spacing: 0.2rem;
+  }
+  
+  .info-message {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  input {
+    font-size: 1.2rem;
+    letter-spacing: 0.3rem;
   }
   
   .utility-buttons-top {

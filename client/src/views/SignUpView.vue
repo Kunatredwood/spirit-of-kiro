@@ -219,11 +219,16 @@ let failureListenerId: string | null = null;
 const setupListeners = () => {
   removeListeners();
   
-  successListenerId = gameStore.addEventListener('signup_success', (data) => {
-    if (data && data.userId) {
-      gameStore.userId = data.userId
-    }
-    router.push('/play')
+  successListenerId = gameStore.addEventListener('signup_pending_verification', (data) => {
+    // Redirect to verification page with username and email
+    const email = data?.codeDeliveryDetails?.destination || username.value
+    router.push({
+      path: '/verify-email',
+      query: {
+        username: username.value,
+        email: email
+      }
+    })
     removeListeners();
   })
   

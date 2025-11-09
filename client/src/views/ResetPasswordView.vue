@@ -22,57 +22,88 @@
     </div>
 
     <div class="auth-wrapper">
-      <router-link to="/" class="back-link">
-        <span>← RETURN</span>
+      <router-link to="/signin" class="back-link">
+        <span>← RETURN TO SIGNIN</span>
       </router-link>
       
       <div class="auth-container">
         <div class="title-bar"></div>
-        <h1 class="glitch" data-text="ACCESS TERMINAL">ACCESS TERMINAL</h1>
+        <h1 class="glitch" data-text="RESET PASSWORD">RESET PASSWORD</h1>
+        
+        <div class="info-message">
+          <span class="info-icon">🔑</span>
+          <div class="info-text">
+            <p>A reset code has been sent to:</p>
+            <p class="email-display">{{ emailDestination }}</p>
+            <p class="info-note">Enter the code and your new password below.</p>
+          </div>
+        </div>
         
         <form @submit.prevent="handleSubmit" class="auth-form">
           <div class="form-group">
-            <label for="username">EMAIL ADDRESS</label>
+            <label for="code">RESET CODE</label>
             <div class="input-wrapper">
               <input 
                 type="text" 
-                id="username" 
-                v-model="username" 
+                id="code" 
+                v-model="resetCode" 
                 required
-                autocomplete="username"
+                maxlength="6"
+                placeholder="000000"
+                autocomplete="off"
               />
               <div class="input-glow"></div>
             </div>
           </div>
-          
+
           <div class="form-group">
-            <label for="password">PASSWORD</label>
+            <label for="password">NEW PASSWORD</label>
             <div class="input-wrapper">
               <input 
                 type="password" 
                 id="password" 
-                v-model="password" 
+                v-model="newPassword" 
                 required
-                autocomplete="current-password"
+                autocomplete="new-password"
+                @input="validatePassword"
               />
               <div class="input-glow"></div>
             </div>
-            <router-link to="/forgot-password" class="forgot-password-link">
-              <span>FORGOT PASSWORD?</span>
-            </router-link>
+            <div class="password-requirements">
+              <div class="requirement" :class="{ met: passwordValidation.length }">
+                <span class="check">{{ passwordValidation.length ? '✓' : '○' }}</span> 8+ CHARACTERS
+              </div>
+              <div class="requirement" :class="{ met: passwordValidation.lowercase }">
+                <span class="check">{{ passwordValidation.lowercase ? '✓' : '○' }}</span> LOWERCASE
+              </div>
+              <div class="requirement" :class="{ met: passwordValidation.uppercase }">
+                <span class="check">{{ passwordValidation.uppercase ? '✓' : '○' }}</span> UPPERCASE
+              </div>
+              <div class="requirement" :class="{ met: passwordValidation.number }">
+                <span class="check">{{ passwordValidation.number ? '✓' : '○' }}</span> NUMBER
+              </div>
+              <div class="requirement" :class="{ met: passwordValidation.symbol }">
+                <span class="check">{{ passwordValidation.symbol ? '✓' : '○' }}</span> SYMBOL
+              </div>
+            </div>
           </div>
 
           <div v-if="error" class="error-message">
             <span class="error-icon">⚠</span> {{ error }}
           </div>
 
-          <button type="submit" class="submit-button">
-            <span class="button-text">AUTHENTICATE</span>
-          </button>
+          <div v-if="successMessage" class="success-message">
+            <span class="success-icon">✓</span> {{ successMessage }}
+          </div>
 
-          <router-link to="/signup" class="toggle-link">
-            <span>NEED ACCESS? REQUEST CREDENTIALS</span>
-          </router-link>
+          <button 
+            type="submit" 
+            class="submit-button"
+            :disabled="!isFormValid"
+            :class="{ 'disabled': !isFormValid }"
+          >
+            <span class="button-text">RESET PASSWORD</span>
+          </button>
         </form>
       </div>
     </div>
@@ -80,16 +111,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted, onMounted } from 'vue'
+import { ref, onUnmounted, onMounted, computed } from 'vue'
 import { useGameStore } from '../stores/game'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const gameStore = useGameStore()
 const router = useRouter()
-const username = ref('')
-const password = ref('')
+const route = useRoute()
+const resetCode = ref('')
+const newPassword = ref('')
 const error = ref('')
+const successMessage = ref('')
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+
+// Get email from route params or query
+const email = ref(route.query.email as string || '')
+const emailDestination = ref(route.query.destination as string || route.query.email as string || 'your email')
 
 let animationFrame: number
 let ctx: CanvasRenderingContext2D | null = null
@@ -192,55 +229,60 @@ function handleResize() {
   canvasRef.value.height = window.innerHeight
 }
 
-// Store listener IDs
-let successListenerId: string | null = null;
-let failureListenerId: string | null = null;
-let unverifiedListenerId: string | null = null;
+const passwordValidation = ref({
+  length: false,
+  lowercase: false,
+  uppercase: false,
+  number: false,
+  symbol: false
+})
 
-// Setup event listeners
+const validatePassword = () => {
+  const pass = newPassword.value
+  passwordValidation.value = {
+    length: pass.length >= 8,
+    lowercase: /[a-z]/.test(pass),
+    uppercase: /[A-Z]/.test(pass),
+    number: /[0-9]/.test(pass),
+    symbol: /[!@#$%^&*(),.?":{}|<>]/.test(pass)
+  }
+}
+
+const isFormValid = computed(() => {
+  return resetCode.value.length === 6 && 
+         Object.values(passwordValidation.value).every(Boolean)
+})
+
+// Store listener IDs
+let passwordResetSuccessListenerId: string | null = null
+let passwordResetFailureListenerId: string | null = null
+
 const setupListeners = () => {
-  removeListeners();
+  removeListeners()
   
-  successListenerId = gameStore.addEventListener('signin_success', (data) => {
-    if (data && data.userId) {
-      gameStore.userId = data.userId
-    }
-    router.push('/play')
-    removeListeners();
-  })
-  
-  failureListenerId = gameStore.addEventListener('signin_failure', (data) => {
-    error.value = data || 'Authentication failed'
-    removeListeners();
-  })
-  
-  unverifiedListenerId = gameStore.addEventListener('signin_unverified', (data) => {
-    error.value = 'Email not verified. Redirecting to verification...'
+  passwordResetSuccessListenerId = gameStore.addEventListener('password_reset_success', (data) => {
+    successMessage.value = 'Password reset successfully! Redirecting to sign in...'
+    error.value = ''
     setTimeout(() => {
-      router.push({
-        path: '/verify-email',
-        query: {
-          username: username.value,
-          email: username.value
-        }
-      })
-      removeListeners();
-    }, 1500)
+      router.push('/signin')
+      removeListeners()
+    }, 2000)
+  })
+  
+  passwordResetFailureListenerId = gameStore.addEventListener('password_reset_failure', (data) => {
+    error.value = data || 'Password reset failed. Please check your code and try again.'
+    successMessage.value = ''
   })
 }
 
 const removeListeners = () => {
-  if (successListenerId) {
-    gameStore.removeEventListener('signin_success', successListenerId)
-    successListenerId = null;
+  if (passwordResetSuccessListenerId) {
+    gameStore.removeEventListener('password_reset_success', passwordResetSuccessListenerId)
+    passwordResetSuccessListenerId = null
   }
-  if (failureListenerId) {
-    gameStore.removeEventListener('signin_failure', failureListenerId)
-    failureListenerId = null;
-  }
-  if (unverifiedListenerId) {
-    gameStore.removeEventListener('signin_unverified', unverifiedListenerId)
-    unverifiedListenerId = null;
+  if (passwordResetFailureListenerId) {
+    gameStore.removeEventListener('password_reset_failure', passwordResetFailureListenerId)
+    passwordResetFailureListenerId = null
   }
 }
 
@@ -254,19 +296,32 @@ const openGuide = () => {
 
 const handleSubmit = async () => {
   error.value = ''
+  successMessage.value = ''
+  
   try {
+    if (!email.value) {
+      error.value = 'Email not found. Please return to forgot password.'
+      return
+    }
+
+    if (!Object.values(passwordValidation.value).every(Boolean)) {
+      error.value = 'Password does not meet all requirements'
+      return
+    }
+
     if (!gameStore.ws) {
       gameStore.reconnect()
       throw new Error('No WebSocket connection available. Attempting to reconnect...')
     }
 
-    setupListeners();
+    setupListeners()
 
     const message = {
-      type: 'signin',
+      type: 'reset_password',
       body: {
-        username: username.value,
-        password: password.value
+        username: email.value,
+        code: resetCode.value,
+        newPassword: newPassword.value
       }
     }
 
@@ -276,36 +331,36 @@ const handleSubmit = async () => {
   }
 }
 
-let connectionListenerId: string | null = null;
-let reconnectFailedId: string | null = null;
+let connectionListenerId: string | null = null
+let reconnectFailedId: string | null = null
 
 onMounted(() => {
   initCanvas()
   animate()
   
   connectionListenerId = gameStore.addEventListener('reconnect-attempt', (data) => {
-    error.value = `Connection lost. Reconnecting... (${data.attempt}/${data.maxAttempts})`;
-  });
+    error.value = `Connection lost. Reconnecting... (${data.attempt}/${data.maxAttempts})`
+  })
   
   reconnectFailedId = gameStore.addEventListener('reconnect-failed', () => {
-    error.value = 'Failed to reconnect. Please try again later.';
-  });
+    error.value = 'Failed to reconnect. Please try again later.'
+  })
   
   window.addEventListener('resize', handleResize)
-});
+})
 
 onUnmounted(() => {
   if (animationFrame) {
     cancelAnimationFrame(animationFrame)
   }
-  removeListeners();
+  removeListeners()
   
   if (connectionListenerId) {
-    gameStore.removeEventListener('reconnect-attempt', connectionListenerId);
+    gameStore.removeEventListener('reconnect-attempt', connectionListenerId)
   }
   
   if (reconnectFailedId) {
-    gameStore.removeEventListener('reconnect-failed', reconnectFailedId);
+    gameStore.removeEventListener('reconnect-failed', reconnectFailedId)
   }
   
   window.removeEventListener('resize', handleResize)
@@ -512,6 +567,46 @@ onUnmounted(() => {
   }
 }
 
+.info-message {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(0, 255, 255, 0.05);
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  margin-bottom: 2rem;
+  align-items: flex-start;
+}
+
+.info-icon {
+  color: #00ffff;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.info-text {
+  flex: 1;
+  color: rgba(0, 255, 255, 0.8);
+  font-size: 0.8rem;
+  letter-spacing: 0.05rem;
+  line-height: 1.5;
+}
+
+.info-text p {
+  margin: 0.25rem 0;
+}
+
+.email-display {
+  color: #00ffff;
+  font-weight: bold;
+  text-shadow: 0 0 5px #00ffff;
+}
+
+.info-note {
+  font-size: 0.7rem;
+  color: rgba(0, 255, 255, 0.6);
+  margin-top: 0.5rem !important;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
@@ -547,11 +642,48 @@ input {
   box-sizing: border-box;
 }
 
+input#code {
+  font-size: 1.5rem;
+  text-align: center;
+  letter-spacing: 0.5rem;
+}
+
+input#code::placeholder {
+  color: rgba(0, 255, 255, 0.2);
+  letter-spacing: 0.5rem;
+}
+
 input:focus {
   outline: none;
   border-color: #00ffff;
   box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
   background: rgba(0, 255, 255, 0.05);
+}
+
+.password-requirements {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.1rem;
+}
+
+.requirement {
+  color: rgba(0, 255, 255, 0.3);
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.requirement.met {
+  color: #00ffff;
+  text-shadow: 0 0 5px #00ffff;
+}
+
+.check {
+  font-size: 0.9rem;
 }
 
 .submit-button {
@@ -572,7 +704,7 @@ input:focus {
   margin-top: 1rem;
 }
 
-.submit-button:hover {
+.submit-button:hover:not(.disabled) {
   background: #00cccc;
   box-shadow: 
     0 0 30px rgba(0, 255, 255, 0.8),
@@ -580,40 +712,11 @@ input:focus {
   transform: translateY(-2px);
 }
 
-.toggle-link {
-  background: none;
-  border: none;
-  color: rgba(0, 255, 255, 0.7);
-  cursor: pointer;
-  padding: 0.5rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.1rem;
-  text-decoration: none;
-  text-align: center;
-  transition: color 0.3s;
-  font-family: 'Courier New', monospace;
-}
-
-.toggle-link:hover {
-  color: #00ffff;
-  text-shadow: 0 0 10px #00ffff;
-}
-
-.forgot-password-link {
-  display: block;
-  margin-top: 0.5rem;
-  color: rgba(0, 255, 255, 0.6);
-  text-decoration: none;
-  font-size: 0.65rem;
-  letter-spacing: 0.1rem;
-  text-align: right;
-  transition: color 0.3s;
-  font-family: 'Courier New', monospace;
-}
-
-.forgot-password-link:hover {
-  color: #00ffff;
-  text-shadow: 0 0 8px #00ffff;
+.submit-button.disabled {
+  background: rgba(0, 255, 255, 0.2);
+  color: rgba(0, 0, 0, 0.5);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .error-message {
@@ -634,6 +737,24 @@ input:focus {
   font-size: 1.2rem;
 }
 
+.success-message {
+  color: #00ff88;
+  text-align: center;
+  font-size: 0.8rem;
+  padding: 0.75rem;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  letter-spacing: 0.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.success-icon {
+  font-size: 1.2rem;
+}
+
 @media (max-width: 768px) {
   .auth-wrapper {
     padding: 1rem;
@@ -646,6 +767,21 @@ input:focus {
   .glitch {
     font-size: 1.4rem;
     letter-spacing: 0.2rem;
+  }
+  
+  .info-message {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .password-requirements {
+    grid-template-columns: 1fr;
+  }
+  
+  input#code {
+    font-size: 1.2rem;
+    letter-spacing: 0.3rem;
   }
   
   .utility-buttons-top {

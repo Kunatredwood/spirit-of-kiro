@@ -1,8 +1,7 @@
 import { SignupMessage, ConnectionState } from '../types';
 import { COGNITO_CONFIG } from '../config';
 import { 
-  SignUpCommand, 
-  AdminConfirmSignUpCommand,
+  SignUpCommand,
   CognitoIdentityProviderClient 
 } from '@aws-sdk/client-cognito-identity-provider';
 
@@ -33,7 +32,7 @@ export default async function handleSignup(state: ConnectionState, data: SignupM
   }
 
   try {
-    // First, sign up the user
+    // Sign up the user
     const signUpCommand = new SignUpCommand({
       ClientId: COGNITO_CONFIG.clientId,
       Username: username,
@@ -52,23 +51,19 @@ export default async function handleSignup(state: ConnectionState, data: SignupM
 
     const signUpResult = await cognitoClient.send(signUpCommand);
 
-    // Then, automatically confirm the user
-    const confirmCommand = new AdminConfirmSignUpCommand({
-      UserPoolId: COGNITO_CONFIG.userPoolId,
-      Username: username
-    });
-
-    await cognitoClient.send(confirmCommand);
-
+    // Capture UserSub for tracking
     state.userId = signUpResult.UserSub;
     state.username = username;
 
     return {
-      type: "signup_success",
+      type: "signup_pending_verification",
       body: { 
         username, 
-        userId: signUpResult.UserSub,
-        userConfirmed: true
+        userId: signUpResult.UserSub || '',
+        codeDeliveryDetails: {
+          destination: signUpResult.CodeDeliveryDetails?.Destination || '',
+          deliveryMedium: signUpResult.CodeDeliveryDetails?.DeliveryMedium || 'EMAIL'
+        }
       }
     };
   } catch (error: any) {
