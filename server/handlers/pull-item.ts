@@ -21,16 +21,25 @@ async function generateNewItem(userId: string) {
   try {
     const imageServiceUrl = `${ITEM_IMAGES_SERVICE_CONFIG.url}/image`;
     const description = itemData.icon;
-    const response = await fetch(`${imageServiceUrl}?description=${encodeURIComponent(description)}`);
+    const fullUrl = `${imageServiceUrl}?description=${encodeURIComponent(description)}`;
+    
+    console.log(`[PULL-ITEM] Fetching image for "${description}" from: ${fullUrl}`);
+    const response = await fetch(fullUrl);
 
+    console.log(`[PULL-ITEM] Image service response status: ${response.status}`);
+    
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[PULL-ITEM] Image service error response: ${errorText}`);
       throw new Error(`Image service returned status ${response.status}`);
     }
 
     const imageData = await response.json();
+    console.log(`[PULL-ITEM] Received image URL: ${imageData.imageUrl}`);
     itemData.imageUrl = imageData.imageUrl;
   } catch (error) {
-    console.error('Error fetching image from item-images service:', error);
+    console.error('[PULL-ITEM] Error fetching image from item-images service:', error);
+    console.error('[PULL-ITEM] Item will use default image');
   }
 
   const savedItem = await createItem(id, userId, itemData);

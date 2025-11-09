@@ -43,6 +43,53 @@ services:
       credentials_network:
         ipv4_address: "169.254.170.3"
 
+  # Hosts the item images generation service
+  item-images:
+    build:
+      context: ./item-images
+      dockerfile: Dockerfile
+    container_name: item-images
+    ports:
+      - "3001:3001"
+    depends_on:
+      ecs-local-endpoints:
+        condition: service_started
+    volumes:
+      # Persist generated images using named volume (visible at D:/podman-data/volume/spirit_of_kiro)
+      - spirit_of_kiro:/app/images
+    env_file:
+      - .env  # Load credentials from .env if it exists
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-west-2}
+      PORT: 3001
+      ENVIRONMENT: local
+      # S3 and CloudFront configuration (set to 'local' for local file storage)
+      S3_BUCKET_NAME: local
+      CLOUDFRONT_DOMAIN: localhost
+      # Redis configuration (optional for local dev)
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      # AWS credentials from .env file
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      # This ENV VAR enables credentials
+      AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: "/creds"
+      # Enables V3 Metadata
+      ECS_CONTAINER_METADATA_URI: "http://169.254.170.2/v3"
+    networks:
+      credentials_network:
+        ipv4_address: "169.254.170.6"
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./item-images
+          target: /app
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
+
   # Hosts the backend WebSocket server
   server:
     build:
@@ -57,12 +104,15 @@ services:
         condition: service_started
       ecs-local-endpoints:
         condition: service_started
+      item-images:
+        condition: service_started
     env_file:
       - dev.env
       - .env  # Load credentials from .env if it exists
     environment:
       AWS_REGION: ${AWS_REGION:-us-east-2}
       DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      ITEM_IMAGES_SERVICE_URL: http://item-images:3001
       # AWS credentials from .env file
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -110,4 +160,9 @@ services:
             - node_modules/
         - action: rebuild
           path: package.json
-    
+
+volumes:
+  # Use existing named volume that points to D:/podman-data/volume/spirit_of_kiro
+  spirit_of_kiro:
+    external: true
+

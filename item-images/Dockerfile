@@ -11,12 +11,15 @@ RUN bun install
 # Copy the rest of the server files
 COPY . .
 
-# Expose port 3000
-EXPOSE 3000
+# Create images directory with proper permissions before switching to non-root user
+RUN mkdir -p /app/images && chown -R bun:bun /app/images
+
+# Expose port 3001
+EXPOSE 3001
 
 # Add healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000 || exit 1
+    CMD curl -f http://localhost:3001 || exit 1
 
 # Switch to non-root user
 USER bun

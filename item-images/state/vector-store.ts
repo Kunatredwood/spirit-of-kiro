@@ -33,6 +33,11 @@ const float32Buffer = (arr) => {
  */
 let checkedIndex = false;
 async function ensureVectorIndex(): Promise<boolean> {
+  // Skip if Redis is not available
+  if (!redisClient) {
+    return false;
+  }
+
   if (checkedIndex == true) {
     return true;
   }
@@ -114,6 +119,12 @@ export async function storeKeyValue(
   inputValue: string,
   metadata?: Record<string, any>
 ): Promise<string> {
+  // Skip if Redis is not available (local development mode)
+  if (!redisClient) {
+    console.log('Redis not available - skipping vector storage');
+    return randomUUID();
+  }
+
   try {
     // Ensure vector index exists
     const indexExists = await ensureVectorIndex();
@@ -155,6 +166,11 @@ export async function nearestMatch(
   inputKey: string,
   limit: number = 1
 ): Promise<any> {
+  // Skip if Redis is not available (local development mode)
+  if (!redisClient) {
+    return null;
+  }
+
   try {
     // Ensure vector index exists
     const indexExists = await ensureVectorIndex();
@@ -229,6 +245,11 @@ export async function nearestMatch(
  * @returns Promise<boolean> - True if successful
  */
 export async function deleteVector(id: string): Promise<boolean> {
+  // Skip if Redis is not available (local development mode)
+  if (!redisClient) {
+    return true;
+  }
+
   try {
     await redisClient.del(`vector:${id}`);
     return true;

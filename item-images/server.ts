@@ -44,6 +44,42 @@ const server = serve({
       return handleImageRoute(req);
     }
 
+    // Handle /images/* endpoint - serve local images
+    if (url.pathname.startsWith("/images/") && method === "GET") {
+      try {
+        const fileName = url.pathname.replace("/images/", "");
+        const filePath = `./images/${fileName}`;
+        const file = Bun.file(filePath);
+        
+        if (await file.exists()) {
+          return new Response(file, {
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "image/png",
+              "Cache-Control": "public, max-age=31536000"
+            }
+          });
+        } else {
+          return new Response(JSON.stringify({ error: "Image not found" }), {
+            status: 404,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json"
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error serving image:", error);
+        return new Response(JSON.stringify({ error: "Error serving image" }), {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json"
+          }
+        });
+      }
+    }
+
     // Handle 404 for unknown routes
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
