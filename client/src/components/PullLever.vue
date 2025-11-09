@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, toRef } from 'vue';
 import leverImage from '../assets/lever.png';
 import { useGameStore } from '../stores/game';
+import { usePlayerInteraction } from '../composables/usePlayerInteraction';
+import InteractPrompt from './InteractPrompt.vue';
 import type { Item } from '../systems/item-system';
 
 const props = defineProps<{
@@ -31,62 +33,65 @@ const currentRotation = ref(props.props.initialAngle || 0);
 const gameStore = useGameStore();
 const localInventory = ref<Item[]>([]);
 
-function handlePlayerInteraction() {
-  if (!props.playerIsNear || isPulling.value || isRotating.value) {
-    return;
-  }
-
-  // Start pulling
-  isPulling.value = true;
-  
-  // Start rotation animation
-  isRotating.value = true;
-  
-  // Animate rotation
-  const initialAngle = props.props.initialAngle || 0;
-  const maxAngle = props.props.maxRotationAngle || 60;
-  const rotationSpeed = props.props.rotationSpeed || 100;
-  
-  // Simple animation using setTimeout
-  const startTime = Date.now();
-  const animateRotation = () => {
-    const elapsed = Date.now() - startTime;
-    const progress = Math.min(elapsed / rotationSpeed, 1);
-    currentRotation.value = initialAngle + progress * (maxAngle - initialAngle);
+// Handle player interaction using composable
+usePlayerInteraction(
+  toRef(props, 'playerIsNear'),
+  () => {
+    // Start pulling
+    isPulling.value = true;
     
-    if (progress < 1) {
-      requestAnimationFrame(animateRotation);
-    } else {
-      // Rotation complete
-      isRotating.value = false;
-      isPulled.value = true;
-      isPulling.value = false;
+    // Start rotation animation
+    isRotating.value = true;
+    
+    // Animate rotation
+    const initialAngle = props.props.initialAngle || 0;
+    const maxAngle = props.props.maxRotationAngle || 60;
+    const rotationSpeed = props.props.rotationSpeed || 100;
+    
+    // Simple animation using setTimeout
+    const startTime = Date.now();
+    const animateRotation = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / rotationSpeed, 1);
+      currentRotation.value = initialAngle + progress * (maxAngle - initialAngle);
       
-      // Emit lever-pulled event
-      gameStore.emitEvent('lever-pulled');
-      
-      // Check if we have local inventory items to prioritize
-      if (localInventory.value.length > 0) {
-        // Pop an item from the local inventory
-        const item = localInventory.value.shift();
-        // Emit the pulled-item event with the local item
-        gameStore.emitEvent('pulled-item', { item });
+      if (progress < 1) {
+        requestAnimationFrame(animateRotation);
       } else {
-        // If no local items, request a new one from the server
-        gameStore.pullItem();
+        // Rotation complete
+        isRotating.value = false;
+        isPulled.value = true;
+        isPulling.value = false;
+        
+        // Emit lever-pulled event
+        gameStore.emitEvent('lever-pulled');
+        
+        // Check if we have local inventory items to prioritize
+        if (localInventory.value.length > 0) {
+          // Pop an item from the local inventory
+          const item = localInventory.value.shift();
+          // Emit the pulled-item event with the local item
+          gameStore.emitEvent('pulled-item', { item });
+        } else {
+          // If no local items, request a new one from the server
+          gameStore.pullItem();
+        }
+        
+        // Auto reset if configured
+        if (props.props.autoReset) {
+          setTimeout(() => {
+            resetLever();
+          }, props.props.resetDelay || 2000);
+        }
       }
-      
-      // Auto reset if configured
-      if (props.props.autoReset) {
-        setTimeout(() => {
-          resetLever();
-        }, props.props.resetDelay || 2000);
-      }
-    }
-  };
-  
-  animateRotation();
-}
+    };
+    
+    animateRotation();
+  },
+  {
+    additionalCondition: () => !isPulling.value && !isRotating.value
+  }
+);
 
 function resetLever() {
   if (!isPulled.value || isRotating.value) {
@@ -153,11 +158,9 @@ const getPivotPoint = () => {
   }
 };
 
-let interactionListenerId: string;
 let inventoryListenerId: string;
 
 onMounted(() => {
-  interactionListenerId = gameStore.addEventListener('player-interaction', handlePlayerInteraction);
   inventoryListenerId = gameStore.addEventListener('inventory-items:main', handleInventoryList);
   
   // Fetch inventory when component mounts
@@ -165,7 +168,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  gameStore.removeEventListener('player-interaction', interactionListenerId);
   gameStore.removeEventListener('inventory-items:main', inventoryListenerId);
 });
 </script>
@@ -180,7 +182,7 @@ onUnmounted(() => {
     border: gameStore.debug ? '1px solid red': 'none',
     zIndex: 10
   }">
-    <div v-if="playerIsNear && !isPulling && !isPulled" class="interact-prompt">E</div>
+    <InteractPrompt :visible="playerIsNear && !isPulling && !isPulled" position="high" />
     <img 
       :src="leverImage" 
       :height="depth * tileSize"
@@ -209,19 +211,6 @@ onUnmounted(() => {
 
 .lever-pulling {
   animation: pulse 1s infinite;
-}
-
-.interact-prompt {
-  position: absolute;
-  top: -80%;
-  right: -10%;
-  font-size: calc(0.5 * v-bind(tileSize))px;
-  font-weight: bold;
-  color: white;
-  text-shadow: 0 0 5px white;
-  background-color: black;
-  padding: 5px 10px;
-  border-radius: 4px;
 }
 
 @keyframes pulse {

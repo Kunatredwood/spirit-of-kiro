@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import garbageImage from '../assets/garbage.png';
 import { useGameStore } from '../stores/game';
-import { ref, onMounted, onUnmounted } from 'vue';
-import { storeToRefs } from 'pinia'
+import { toRef } from 'vue';
+import { storeToRefs } from 'pinia';
+import { usePlayerInteraction } from '../composables/usePlayerInteraction';
+import InteractPrompt from './InteractPrompt.vue';
 
 const props = defineProps<{
   row: number;
@@ -16,33 +18,22 @@ const props = defineProps<{
 
 const gameStore = useGameStore();
 const { heldItemId } = storeToRefs(gameStore);
-let interactionListenerId: string;
 
-// Function to handle player interaction with the garbage can
-const interaction = () => {
-  if (!props.playerIsNear) {
-    return;
+// Handle player interaction using composable
+usePlayerInteraction(
+  toRef(props, 'playerIsNear'),
+  () => {
+    if (!heldItemId.value) {
+      // Nothing held
+      return;
+    }
+
+    // Emit intent-to-discard-item event with the held item ID
+    gameStore.emitEvent('intent-to-discard-item', {
+      id: heldItemId.value
+    });
   }
-
-  if (!heldItemId.value) {
-    // Nothing held
-    return;
-  }
-
-  // Emit intent-to-discard-item event with the held item ID
-  gameStore.emitEvent('intent-to-discard-item', {
-    id: heldItemId.value
-  });
-};
-
-onMounted(() => {
-  interactionListenerId = gameStore.addEventListener('player-interaction', interaction);
-});
-
-onUnmounted(() => {
-  // Clean up event listener
-  gameStore.removeEventListener('intent-to-discard-item', interactionListenerId);
-});
+);
 </script>
 
 <template>
@@ -54,7 +45,7 @@ onUnmounted(() => {
     height: `${depth * tileSize}px`,
     border: gameStore.debug ? '1px solid red': 'none'
   }">
-    <div v-if="playerIsNear" class="interact-prompt">E</div>
+    <InteractPrompt :visible="playerIsNear" position="above" />
     <img 
       :src="garbageImage" 
       :width="width * tileSize" 
@@ -87,22 +78,6 @@ onUnmounted(() => {
 
 .garbage-active {
   filter: drop-shadow(0 0 15px white);
-}
-
-.interact-prompt {
-  position: absolute;
-  top: calc(-.3 * v-bind(tileSize) * 1px);
-  left: calc(2 * v-bind(tileSize) * 1px);
-  font-size: calc(0.5 * v-bind(tileSize) * 1px);
-  font-weight: bold;
-  color: white;
-  text-shadow: 0 0 5px white;
-  animation: pulse 1s infinite;
-  background-color: black;
-  padding: calc(0.1 * v-bind(tileSize) * 1px) calc(0.1 * v-bind(tileSize) * 1px);
-  border-radius: calc(0.08 * v-bind(tileSize) * 1px);
-  z-index: 1;
-  line-height: 1;
 }
 
 @keyframes pulse {

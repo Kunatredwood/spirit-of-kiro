@@ -14,6 +14,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'player',
     type: PlayerCharacter,
+    interactive: false,
     row: gridSize / 2,
     col: gridSize / 2,
     width: 1,
@@ -37,6 +38,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'banner',
     type: Banner,
+    interactive: false,
     row: 2,
     col: 2,
     width: gridSize - 2,
@@ -48,6 +50,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'backwall1',
     type: Wall,
+    interactive: false,
     row: -2,
     col: 1,
     width: gridSize,
@@ -70,6 +73,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'leftwall',
     type: Wall,
+    interactive: false,
     row: 1,
     col: -1, // Start 2 tiles outside the play area
     width: 3, // Increased width to 3
@@ -92,6 +96,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'rightwall',
     type: Wall,
+    interactive: false,
     row: 1,
     col: gridSize,
     width: 3, // Increased width to extend 2 tiles out of the play area
@@ -114,6 +119,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'bottomwall-left',
     type: Wall,
+    interactive: false,
     row: gridSize - 1.5,
     col: 1,
     width: 8,
@@ -136,6 +142,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'bottomwall-right',
     type: Wall,
+    interactive: false,
     row: gridSize - 1.5,
     col: 13,
     width: 8,
@@ -158,6 +165,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'door-block',
     type: Wall,
+    interactive: false,
     row: gridSize + .25,
     col: 9,
     width: 4,
@@ -180,6 +188,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'door-field',
     type: Wall,
+    interactive: false,
     row: gridSize - 1.5,
     col: 9,
     width: 4,
@@ -202,6 +211,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'sell-field',
     type: Wall,
+    interactive: false,
     row: gridSize + .5,
     col: 9,
     width: 4,
@@ -225,6 +235,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'chest1',
     type: Chest,
+    interactive: true,
     row: 10.5,
     col: 17.75,
     width: 2,
@@ -247,6 +258,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'dispenser1',
     type: Dispenser,
+    interactive: true,
     row: 4.9,
     col: 9.15,
     width: 2.5,
@@ -269,6 +281,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'workbench1',
     type: Workbench,
+    interactive: true,
     row: 3.5,
     col: 16,
     width: 2.5,
@@ -291,6 +304,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'lever1',
     type: PullLever,
+    interactive: true,
     row: 5.5,
     col: 11.9,
     width: 1.5,
@@ -314,6 +328,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'garbage1',
     type: Garbage,
+    interactive: true,
     row: 4.4,
     col: 3.85,
     width: 2,
@@ -326,6 +341,7 @@ export function setupGameObjects(gameStore: any, gridSize: number) {
   gameStore.addObject({
     id: 'computer1',
     type: Computer,
+    interactive: true,
     row: 12.4,
     col: 2.25,
     width: 2.5,

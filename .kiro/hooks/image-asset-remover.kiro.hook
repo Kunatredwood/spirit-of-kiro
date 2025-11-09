@@ -1,0 +1,19 @@
+{
+  "name": "Image Asset Remover",
+  "description": "Automatically removes references to newly deleted image files in the assets folder to the index.ts file",
+  "version": "1",
+  "when": {
+    "type": "fileDeleted",
+    "patterns": [
+      "client/src/assets/*.png",
+      "client/src/assets/*.jpg",
+      "client/src/assets/*.jpeg",
+      "client/src/assets/*.gif",
+      "client/src/assets/*.svg"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "An image file has been removed from the assets folder. Please update the index.ts file in the assets folder to remove any references to this removed image."
+  }
+}

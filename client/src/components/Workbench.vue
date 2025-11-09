@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import workbenchImage from '../assets/workbench.png';
 import workbenchZoomImage from '../assets/workbench-zoom.png';
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, toRef } from 'vue';
 import { useGameStore } from '../stores/game';
+import { usePlayerInteraction } from '../composables/usePlayerInteraction';
+import InteractPrompt from './InteractPrompt.vue';
 import WorkbenchFullscreen from './WorkbenchFullscreen.vue';
 import { getRarityClass } from '../utils/items';
 import GameItem from './GameItem.vue';
@@ -102,11 +104,8 @@ const toolsCapacityDots = computed(() => {
   return dots;
 });
 
-function handlePlayerInteraction() {
-  if (!props.playerIsNear) {
-    return;
-  }
-
+// Handle player interaction using composable
+usePlayerInteraction(toRef(props, 'playerIsNear'), () => {
   if (!gameStore.heldItemId) {
     showFullscreen.value = true;
     gameStore.emitEvent('clean-workbench-results');
@@ -131,7 +130,7 @@ function handlePlayerInteraction() {
     showFullscreen.value = true;
     gameStore.emitEvent('clean-workbench-results');
   }
-}
+});
 
 // Define constants for overflow item physics
 const OVERFLOW_IMPULSE = 5; // Lower impulse than throwing
@@ -151,6 +150,7 @@ function handleWorkbenchOverflowItem(data: { itemId: string }) {
   gameStore.addObject({
     id: data.itemId,
     type: GameItem,
+    interactive: true,
     row: props.row + props.depth, // Position below the workbench
     col: props.col + props.width / 2, // Center horizontally
     width: 1,
@@ -172,16 +172,13 @@ function handleWorkbenchOverflowItem(data: { itemId: string }) {
   });
 }
 
-let interactionListenerId: string;
 let overflowItemListenerId: string;
 
 onMounted(() => {
-  interactionListenerId = gameStore.addEventListener('player-interaction', handlePlayerInteraction);
   overflowItemListenerId = gameStore.addEventListener('workbench-overflow-item', handleWorkbenchOverflowItem);
 });
 
 onUnmounted(() => {
-  gameStore.removeEventListener('player-interaction', interactionListenerId);
   gameStore.removeEventListener('workbench-overflow-item', overflowItemListenerId);
 });
 
@@ -201,7 +198,7 @@ const closeFullscreen = () => {
       height: `${depth * tileSize}px`,
       border: gameStore.debug ? '1px solid red': 'none'
     }">
-      <div v-if="playerIsNear" class="interact-prompt">E</div>
+      <InteractPrompt :visible="playerIsNear" position="top" />
       <img 
         :src="workbenchImage" 
         :width="width * tileSize" 
@@ -261,23 +258,6 @@ const closeFullscreen = () => {
 
 .workbench-active {
   filter: drop-shadow(0 0 15px white);
-}
-
-.interact-prompt {
-  position: absolute;
-  top: calc(-1.1 * v-bind(tileSize) * 1px);
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: calc(0.5 * v-bind(tileSize) * 1px);
-  font-weight: bold;
-  color: white;
-  text-shadow: 0 0 5px white;
-  animation: pulse 1s infinite;
-  background-color: black;
-  padding: calc(0.1 * v-bind(tileSize) * 1px) calc(0.1 * v-bind(tileSize) * 1px);
-  border-radius: calc(0.08 * v-bind(tileSize) * 1px);
-  z-index: 1;
-  line-height: 1;
 }
 
 .capacity-grid {

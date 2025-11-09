@@ -2,7 +2,9 @@
 import computerImage from '../assets/computer.png';
 import computerZoomImage from '../assets/computer-zoom.png';
 import { useGameStore } from '../stores/game';
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, toRef } from 'vue';
+import { usePlayerInteraction } from '../composables/usePlayerInteraction';
+import InteractPrompt from './InteractPrompt.vue';
 import ComputerFullscreen from './ComputerFullscreen.vue';
 import { getRarityClass } from '../utils/items';
 
@@ -57,12 +59,8 @@ const linkedInventory = computed(() => {
   return `${gameStore.userId}:${inventoryName}`
 });
 
-// Function to handle player interaction with the computer
-const handlePlayerInteraction = () => {
-  if (!props.playerIsNear) {
-    return;
-  }
-
+// Handle player interaction using composable
+usePlayerInteraction(toRef(props, 'playerIsNear'), () => {
   if (!gameStore.heldItemId) {
     showFullscreen.value = true;
     return;
@@ -74,7 +72,7 @@ const handlePlayerInteraction = () => {
     gameStore.emitEvent('drop-item', { itemId: gameStore.heldItemId });
     showFullscreen.value = true;
   }
-};
+});
 
 function handleItemMoved(data: any) {
   if (!data) {
@@ -87,18 +85,15 @@ function handleItemMoved(data: any) {
   }
 }
 
-let interactionListenerId: string;
 let itemMovedListenerId: string;
 
 onMounted(() => {
-  interactionListenerId = gameStore.addEventListener('player-interaction', handlePlayerInteraction);
   itemMovedListenerId = gameStore.addEventListener('item-moved', handleItemMoved);
   // Pre-fetch discarded items when computer is mounted
   gameStore.peekDiscarded(21);
 });
 
 onUnmounted(() => {
-  gameStore.removeEventListener('player-interaction', interactionListenerId);
   gameStore.removeEventListener('item-moved', itemMovedListenerId);
 });
 
@@ -118,7 +113,7 @@ const closeFullscreen = () => {
       height: `${depth * tileSize}px`,
       border: gameStore.debug ? '1px solid red': 'none'
     }">
-      <div v-if="playerIsNear" class="interact-prompt">E</div>
+      <InteractPrompt :visible="playerIsNear" position="above" />
       
       <img 
         :src="computerImage" 
@@ -171,22 +166,6 @@ const closeFullscreen = () => {
 
 .computer-active {
   filter: drop-shadow(0 0 15px white);
-}
-
-.interact-prompt {
-  position: absolute;
-  top: calc(-.3 * v-bind(tileSize) * 1px);
-  left: calc(2 * v-bind(tileSize) * 1px);
-  font-size: calc(0.5 * v-bind(tileSize) * 1px);
-  font-weight: bold;
-  color: white;
-  text-shadow: 0 0 5px white;
-  animation: pulse 1s infinite;
-  background-color: black;
-  padding: calc(0.1 * v-bind(tileSize) * 1px) calc(0.1 * v-bind(tileSize) * 1px);
-  border-radius: calc(0.08 * v-bind(tileSize) * 1px);
-  z-index: 1;
-  line-height: 1;
 }
 
 .capacity-grid {
