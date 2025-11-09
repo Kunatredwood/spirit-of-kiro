@@ -14,6 +14,7 @@ export class PhysicsSystem {
   private lastTimestamp: number = 0;
   private animationFrameId: number | null = null;
   private hasActivePhysics: Ref<boolean>;
+  private isVisible: boolean = true;
 
   private physicsObjects = computed(() => this.objects.value.filter(obj => obj.physics))
   private walls = computed(() => this.objects.value.filter(obj => obj.physics && obj.physics.mass == Infinity))
@@ -39,6 +40,15 @@ export class PhysicsSystem {
         self.stop();
       }
     })
+
+    // Pause physics when tab is hidden to prevent delta time spikes
+    document.addEventListener('visibilitychange', () => {
+      this.isVisible = !document.hidden;
+      if (this.isVisible) {
+        // Reset timestamp when tab becomes visible to prevent large delta
+        this.lastTimestamp = performance.now();
+      }
+    });
   }
 
   start() {
@@ -59,9 +69,22 @@ export class PhysicsSystem {
   }
 
   private update(timestamp: number) {
+    // Skip physics updates when tab is not visible
+    if (!this.isVisible) {
+      this.animationFrameId = requestAnimationFrame(this.update.bind(this));
+      return;
+    }
+
     // Calculate delta time in seconds
-    const deltaTime = (timestamp - this.lastTimestamp) / 1000;
+    let deltaTime = (timestamp - this.lastTimestamp) / 1000;
     this.lastTimestamp = timestamp;
+    
+    // Cap delta time to prevent physics explosions when tab is inactive
+    // Max 0.1 seconds (100ms) to handle tab switching gracefully
+    const MAX_DELTA_TIME = 0.1;
+    if (deltaTime > MAX_DELTA_TIME) {
+      deltaTime = MAX_DELTA_TIME;
+    }
     
     // Update physics for all objects
     this.updatePhysics(deltaTime);
