@@ -7,6 +7,7 @@ export interface GameObject {
   type: Component
   row: number
   col: number
+  interactive: boolean  // Flag to mark objects that can be interacted with (required)
   width?: number
   height?: number
   depth?: number
@@ -66,9 +67,14 @@ export class GameObjectSystem {
       }
     })
 
-    // Find the closest object based on tile distance
+    // Find the closest interactive object based on tile distance
     this.objects.value.forEach(obj => {
       if (obj.id === 'player') {
+        return
+      }
+
+      // Skip non-interactive objects (like walls)
+      if (!obj.interactive) {
         return
       }
 

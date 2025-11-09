@@ -138,6 +138,7 @@ const handleDropItem = (data: any) => {
   gameStore.addObject({
     id: heldItemId.value,
     type: GameItem,
+    interactive: true,
     row: props.row,
     col: props.col,
     width: 1,

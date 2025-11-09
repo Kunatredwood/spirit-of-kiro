@@ -151,6 +151,7 @@ function handleWorkbenchOverflowItem(data: { itemId: string }) {
   gameStore.addObject({
     id: data.itemId,
     type: GameItem,
+    interactive: true,
     row: props.row + props.depth, // Position below the workbench
     col: props.col + props.width / 2, // Center horizontally
     width: 1,

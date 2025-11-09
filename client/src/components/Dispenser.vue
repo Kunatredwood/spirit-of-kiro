@@ -86,6 +86,7 @@ function spawnItemGameObject(data: any) {
     gameStore.addObject({
       id: itemId,
       type: GameItem,
+      interactive: true,
       row: itemRow,
       col: itemCol,
       width: 1,
