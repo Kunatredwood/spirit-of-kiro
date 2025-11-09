@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import chestImage from '../assets/chest.png';
 import chestOpenImage from '../assets/chest-open.png';
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, toRef } from 'vue';
 import { useGameStore } from '../stores/game';
+import { usePlayerInteraction } from '../composables/usePlayerInteraction';
+import InteractPrompt from './InteractPrompt.vue';
 import ChestFullscreen from './ChestFullscreen.vue';
 import { getRarityClass } from '../utils/items';
 
@@ -63,11 +65,8 @@ const linkedInventory = computed(() => {
   return `${gameStore.userId}:${inventoryName}`
 });
 
-function handlePlayerInteraction() {
-  if (!props.playerIsNear) {
-    return;
-  }
-
+// Handle player interaction using composable
+usePlayerInteraction(toRef(props, 'playerIsNear'), () => {
   if (!gameStore.heldItemId) {
     showFullscreen.value = true;
     return;
@@ -92,7 +91,7 @@ function handlePlayerInteraction() {
     // Remove the held item
     gameStore.heldItemId = null;
   }
-}
+});
 
 function handleItemMoved(data: any) {
   if (!data) {
@@ -105,16 +104,13 @@ function handleItemMoved(data: any) {
   }
 }
 
-let interactionListenerId: string;
 let itemMovedListenerId: string;
 
 onMounted(() => {
-  interactionListenerId = gameStore.addEventListener('player-interaction', handlePlayerInteraction);
   itemMovedListenerId = gameStore.addEventListener('item-moved', handleItemMoved);
 });
 
 onUnmounted(() => {
-  gameStore.removeEventListener('player-interaction', interactionListenerId);
   gameStore.removeEventListener('item-moved', itemMovedListenerId);
 });
 
@@ -134,7 +130,7 @@ const closeFullscreen = () => {
       height: `${depth * tileSize}px`,
       border: gameStore.debug ? '1px solid red': 'none'
     }">
-      <div v-if="playerIsNear" class="interact-prompt">E</div>
+      <InteractPrompt :visible="playerIsNear" position="top" />
       
       <img 
         :src="chestImage" 
@@ -186,23 +182,6 @@ const closeFullscreen = () => {
 
 .chest-active {
   filter: drop-shadow(0 0 15px white);
-}
-
-.interact-prompt {
-  position: absolute;
-  top: calc(-1.1 * v-bind(tileSize) * 1px);
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: calc(0.5 * v-bind(tileSize) * 1px);
-  font-weight: bold;
-  color: white;
-  text-shadow: 0 0 5px white;
-  animation: pulse 1s infinite;
-  background-color: black;
-  padding: calc(0.1 * v-bind(tileSize) * 1px) calc(0.1 * v-bind(tileSize) * 1px);
-  border-radius: calc(0.08 * v-bind(tileSize) * 1px);
-  z-index: 1;
-  line-height: 1;
 }
 
 .capacity-grid {

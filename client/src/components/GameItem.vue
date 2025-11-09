@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { type PhysicsProperties } from '../utils/physics';
-import { onMounted, onUnmounted, computed } from 'vue';
+import { computed, toRef } from 'vue';
 import { useGameStore } from '../stores/game';
 import { getRarityClass } from '../utils/items';
+import { usePlayerInteraction } from '../composables/usePlayerInteraction';
+import InteractPrompt from './InteractPrompt.vue';
 
 const store = useGameStore();
 
@@ -45,39 +47,32 @@ const shadowOpacity = computed(() => {
   return Math.max(0, 0.3 * (1 - height / 4));
 });
 
-function handlePlayerInteraction() {
-  if (!props.playerIsNear || !item.value) {
-    return;
-  }
+// Handle player interaction using composable
+usePlayerInteraction(
+  toRef(props, 'playerIsNear'),
+  () => {
+    // If the item hasn't been picked up yet, emit inspect-item event
+    if (!props.props.pickedUp) {
+      store.emitEvent('inspect-item', {
+        id: props.props.itemId
+      });
+    }
 
-  // If the item hasn't been picked up yet, emit inspect-item event
-  if (!props.props.pickedUp) {
-    store.emitEvent('inspect-item', {
+    // Remove the item from the game world so it no longer renders
+    // but we will keep it inside of the item list, so that the
+    // player can pick it up.
+    store.removeObject(props.id);
+
+    // Emit item pickup events. The PlayerCharacter component subscribes
+    // to this event.
+    store.emitEvent('item-pickup', {
       id: props.props.itemId
     });
+  },
+  {
+    additionalCondition: () => !!item.value // Only interact if item exists
   }
-
-  // Remove the item from the game world so it no longer renders
-  // but we will keep it inside of the item list, so that the
-  // player can pick it up.
-  store.removeObject(props.id);
-
-  // Emit item pickup events. The PlayerCharacter component subscribes
-  // to this event.
-  store.emitEvent('item-pickup', {
-    id: props.props.itemId
-  });
-}
-
-let interactionListenerId: string;
-
-onMounted(() => {
-  interactionListenerId = store.addEventListener('player-interaction', handlePlayerInteraction);
-});
-
-onUnmounted(() => {
-  store.removeEventListener('player-interaction', interactionListenerId);
-});
+);
 </script>
 
 <template>
@@ -162,7 +157,7 @@ onUnmounted(() => {
       }"
     ></div>
     <div class="item-container" :class="[{ 'item-near': playerIsNear }, rarityClass]">
-      <div v-if="playerIsNear" class="interact-prompt">E</div>
+      <InteractPrompt :visible="playerIsNear" position="high" />
       <img :src="icon" alt="Item" class="item-image" />
     </div>
     <!--<div class="item-name" :class="getRarityClass">{{ item?.name || 'Unknown Item' }}</div>-->
@@ -195,19 +190,5 @@ onUnmounted(() => {
   pointer-events: none;
   box-sizing: border-box;
   background-color: rgba(255, 0, 0, 0.1);
-}
-
-.interact-prompt {
-  position: absolute;
-  top: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: calc(0.5 * v-bind(tileSize))px;
-  font-weight: bold;
-  color: white;
-  text-shadow: 0 0 5px white;
-  background-color: black;
-  padding: 5px 10px;
-  border-radius: 4px;
 }
 </style>

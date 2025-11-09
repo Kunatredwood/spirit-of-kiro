@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import dispenserImage from '../assets/chute.png';
 import panel from '../assets/panel-background.png';
 import { useGameStore } from '../stores/game';
+import InteractPrompt from './InteractPrompt.vue';
 import GameItem from './GameItem.vue';
 
 const props = defineProps<{
@@ -151,7 +152,7 @@ onUnmounted(() => {
     height: `${depth * tileSize}px`,
     border: gameStore.debug ? '1px solid red': 'none'
   }">
-    <div v-if="playerIsNear && !isPulling" class="interact-prompt">E</div>
+    <InteractPrompt :visible="playerIsNear && !isPulling" position="top" />
     <img 
       :src="panel" 
       :style="{
